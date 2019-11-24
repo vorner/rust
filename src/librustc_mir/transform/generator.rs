@@ -894,6 +894,7 @@ fn elaborate_generator_drops<'tcx>(tcx: TyCtxt<'tcx>, def_id: DefId, body: &mut 
                 source_info,
                 kind: TerminatorKind::Drop {
                     location,
+                    flag: None,
                     target,
                     unwind
                 }
@@ -1109,6 +1110,7 @@ fn insert_clean_drop(body: &mut Body<'_>) -> BasicBlock {
     let drop_clean = BasicBlock::new(body.basic_blocks().len());
     let term = TerminatorKind::Drop {
         location: Place::from(self_arg()),
+        flag: None,
         target: return_block,
         unwind: None,
     };

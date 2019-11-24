@@ -281,7 +281,7 @@ impl<'a, 'tcx> DropElaborator<'a, 'tcx> for DropShimElaborator<'a, 'tcx> {
         }
     }
 
-    fn get_drop_flag(&mut self, _path: Self::Path) -> Option<Operand<'tcx>> {
+    fn get_drop_flag(&mut self, _path: Self::Path) -> Option<Place<'tcx>> {
         None
     }
 
@@ -617,6 +617,7 @@ impl CloneShimBuilder<'tcx> {
         // `drop(dest[beg])`;
         self.block(vec![], TerminatorKind::Drop {
             location: self.tcx.mk_place_index(dest, beg),
+            flag: None,
             target: BasicBlock::new(8),
             unwind: None,
         }, true);
@@ -674,6 +675,7 @@ impl CloneShimBuilder<'tcx> {
                 // Drop previous field and goto previous cleanup block.
                 self.block(vec![], TerminatorKind::Drop {
                     location: previous_field,
+                    flag: None,
                     target: previous_cleanup,
                     unwind: None,
                 }, true);
@@ -808,6 +810,7 @@ fn build_call_shim<'tcx>(
         // BB #1 - drop for Self
         block(&mut blocks, vec![], TerminatorKind::Drop {
             location: Place::from(rcvr_arg),
+            flag: None,
             target: BasicBlock::new(2),
             unwind: None
         }, false);
@@ -818,6 +821,7 @@ fn build_call_shim<'tcx>(
         // BB #3 - drop if closure panics
         block(&mut blocks, vec![], TerminatorKind::Drop {
             location: Place::from(rcvr_arg),
+            flag: None,
             target: BasicBlock::new(4),
             unwind: None
         }, true);

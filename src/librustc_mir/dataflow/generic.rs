@@ -480,7 +480,7 @@ where
             mir::TerminatorKind::Goto { target }
             | mir::TerminatorKind::Assert { target, cleanup: None, .. }
             | mir::TerminatorKind::Yield { resume: target, drop: None, .. }
-            | mir::TerminatorKind::Drop { target, location: _, unwind: None }
+            | mir::TerminatorKind::Drop { target, location: _, unwind: None, flag: _ }
             | mir::TerminatorKind::DropAndReplace { target, value: _, location: _, unwind: None } =>
             {
                 self.propagate_bits_into_entry_set_for(in_out, target, dirty_list);
@@ -492,7 +492,7 @@ where
             }
 
             mir::TerminatorKind::Assert { target, cleanup: Some(unwind), .. }
-            | mir::TerminatorKind::Drop { target, location: _, unwind: Some(unwind) }
+            | mir::TerminatorKind::Drop { target, location: _, unwind: Some(unwind), flag: _ }
             | mir::TerminatorKind::DropAndReplace {
                 target,
                 value: _,

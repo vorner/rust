@@ -105,6 +105,7 @@ impl<'mir, 'tcx, M: Machine<'mir, 'tcx>> InterpCx<'mir, 'tcx, M> {
 
             Drop {
                 ref location,
+                ref flag,
                 target,
                 unwind,
             } => {
@@ -113,14 +114,22 @@ impl<'mir, 'tcx, M: Machine<'mir, 'tcx>> InterpCx<'mir, 'tcx, M> {
                 let ty = place.layout.ty;
                 trace!("TerminatorKind::drop: {:?}, type {}", location, ty);
 
-                let instance = Instance::resolve_drop_in_place(*self.tcx, ty);
-                self.drop_in_place(
-                    place,
-                    instance,
-                    terminator.source_info.span,
-                    target,
-                    unwind
-                )?;
+                let should_drop = if let Some(flag) = flag {
+                    let imm = self.read_scalar(self.eval_place_to_op(flag, None)?)?.not_undef()?;
+                    imm.to_bool()?
+                } else {
+                    true
+                };
+                if should_drop {
+                    let instance = Instance::resolve_drop_in_place(*self.tcx, ty);
+                    self.drop_in_place(
+                        place,
+                        instance,
+                        terminator.source_info.span,
+                        target,
+                        unwind
+                    )?;
+                }
             }
 
             Assert {

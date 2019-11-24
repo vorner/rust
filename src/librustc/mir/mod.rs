@@ -1088,8 +1088,18 @@ pub enum TerminatorKind<'tcx> {
     /// Indicates a terminator that can never be reached.
     Unreachable,
 
-    /// Drop the `Place`.
-    Drop { location: Place<'tcx>, target: BasicBlock, unwind: Option<BasicBlock> },
+    /// Drop the `Place`, possibly conditioned on a flag being true.
+    Drop {
+        location: Place<'tcx>,
+        /// Whether to drop the value.
+        ///
+        /// Before drop elaboration this is always `None. After drop elaboration
+        /// If this is `None` then the drop is unconditional, otherwise the drop
+        /// is only evaluated when the flag is true.
+        flag: Option<Place<'tcx>>,
+        target: BasicBlock,
+        unwind: Option<BasicBlock>,
+    },
 
     /// Drop the `Place` and assign the new value over it. This ensures
     /// that the assignment to `P` occurs *even if* the destructor for
@@ -1464,7 +1474,10 @@ impl<'tcx> TerminatorKind<'tcx> {
             Abort => write!(fmt, "abort"),
             Yield { ref value, .. } => write!(fmt, "_1 = suspend({:?})", value),
             Unreachable => write!(fmt, "unreachable"),
-            Drop { ref location, .. } => write!(fmt, "drop({:?})", location),
+            Drop { ref location, flag: Some(ref flag), .. } => {
+                write!(fmt, "if {:?} drop({:?})", flag, location)
+            }
+            Drop { ref location, flag: None, .. } => write!(fmt, "drop({:?})", location),
             DropAndReplace { ref location, ref value, .. } => {
                 write!(fmt, "replace({:?} <- {:?})", location, value)
             }
@@ -2967,8 +2980,13 @@ impl<'tcx> TypeFoldable<'tcx> for Terminator<'tcx> {
                 values: values.clone(),
                 targets: targets.clone(),
             },
-            Drop { ref location, target, unwind } => {
-                Drop { location: location.fold_with(folder), target, unwind }
+            Drop { ref location, ref flag, target, unwind } => {
+                Drop {
+                    location: location.fold_with(folder),
+                    flag: flag.fold_with(folder),
+                    target,
+                    unwind,
+                }
             }
             DropAndReplace { ref location, ref value, target, unwind } => DropAndReplace {
                 location: location.fold_with(folder),
@@ -3025,7 +3043,9 @@ impl<'tcx> TypeFoldable<'tcx> for Terminator<'tcx> {
             SwitchInt { ref discr, switch_ty, .. } => {
                 discr.visit_with(visitor) || switch_ty.visit_with(visitor)
             }
-            Drop { ref location, .. } => location.visit_with(visitor),
+            Drop { ref location, ref flag, .. } => {
+                location.visit_with(visitor) || flag.visit_with(visitor)
+            },
             DropAndReplace { ref location, ref value, .. } => {
                 location.visit_with(visitor) || value.visit_with(visitor)
             }

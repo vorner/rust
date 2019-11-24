@@ -257,8 +257,8 @@ impl<'a, 'b, 'tcx> DropElaborator<'a, 'tcx> for Elaborator<'a, 'b, 'tcx> {
         })
     }
 
-    fn get_drop_flag(&mut self, path: Self::Path) -> Option<Operand<'tcx>> {
-        self.ctxt.drop_flag(path).map(Operand::Copy)
+    fn get_drop_flag(&mut self, path: Self::Path) -> Option<Place<'tcx>> {
+        self.ctxt.drop_flag(path)
     }
 }
 
@@ -374,10 +374,14 @@ impl<'b, 'tcx> ElaborateDropsCtxt<'b, 'tcx> {
 
             let resume_block = self.patch.resume_block();
             match terminator.kind {
-                TerminatorKind::Drop { ref location, target, unwind } => {
+                TerminatorKind::Drop { ref location, ref flag, target, unwind } => {
                     let init_data = self.initialization_data_at(loc);
                     match self.move_data().rev_lookup.find(location.as_ref()) {
                         LookupResult::Exact(path) => {
+                            debug_assert!(
+                                flag.is_none(),
+                                "should not have drop flags before elaboration",
+                            );
                             elaborate_drop(
                                 &mut Elaborator {
                                     init_data: &init_data,
@@ -494,6 +498,7 @@ impl<'b, 'tcx> ElaborateDropsCtxt<'b, 'tcx> {
                 debug!("elaborate_drop_and_replace({:?}) - untracked {:?}", terminator, parent);
                 self.patch.patch_terminator(bb, TerminatorKind::Drop {
                     location: location.clone(),
+                    flag: None,
                     target,
                     unwind: Some(unwind)
                 });

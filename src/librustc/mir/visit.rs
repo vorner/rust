@@ -432,14 +432,22 @@ macro_rules! make_mir_visitor {
 
                     TerminatorKind::Drop {
                         location,
+                        flag,
                         target: _,
                         unwind: _,
                     } => {
                         self.visit_place(
                             location,
                             PlaceContext::MutatingUse(MutatingUseContext::Drop),
-                            source_location
+                            source_location,
                         );
+                        if let Some(flag) = flag {
+                            self.visit_place(
+                                flag,
+                                PlaceContext::NonMutatingUse(NonMutatingUseContext::Inspect),
+                                source_location,
+                            );
+                        }
                     }
 
                     TerminatorKind::DropAndReplace {

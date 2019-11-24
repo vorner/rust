@@ -321,8 +321,10 @@ impl<'a, 'tcx, Bx: BuilderMethods<'a, 'tcx>> FunctionCx<'a, 'tcx, Bx> {
         helper: TerminatorCodegenHelper<'b, 'tcx>,
         mut bx: Bx,
         location: &mir::Place<'tcx>,
+        flag: &Option<mir::Place<'tcx>>,
         target: mir::BasicBlock,
         unwind: Option<mir::BasicBlock>,
+        source_info: mir::SourceInfo,
     ) {
         let ty = location.ty(self.mir, bx.tcx()).ty;
         let ty = self.monomorphize(&ty);
@@ -333,6 +335,16 @@ impl<'a, 'tcx, Bx: BuilderMethods<'a, 'tcx>> FunctionCx<'a, 'tcx, Bx> {
             helper.maybe_sideeffect(self.mir, &mut bx, &[target]);
             helper.funclet_br(self, &mut bx, target);
             return
+        }
+
+        if let Some(flag) = flag {
+            let flag = self.codegen_consume(&mut bx, &flag.as_ref()).immediate();
+            let lltarget = helper.llblock(self, target);
+            let drop_block = self.new_block("drop");
+            helper.maybe_sideeffect(self.mir, &mut bx, &[target]);
+            bx.cond_br(flag, drop_block.llbb(), lltarget);
+            bx = drop_block;
+            self.set_debug_loc(&mut bx, source_info);
         }
 
         let place = self.codegen_place(&mut bx, &location.as_ref());
@@ -854,8 +866,16 @@ impl<'a, 'tcx, Bx: BuilderMethods<'a, 'tcx>> FunctionCx<'a, 'tcx, Bx> {
                 bx.unreachable();
             }
 
-            mir::TerminatorKind::Drop { ref location, target, unwind } => {
-                self.codegen_drop_terminator(helper, bx, location, target, unwind);
+            mir::TerminatorKind::Drop { ref location, ref flag, target, unwind } => {
+                self.codegen_drop_terminator(
+                    helper,
+                    bx,
+                    location,
+                    flag,
+                    target,
+                    unwind,
+                    terminator.source_info,
+                );
             }
 
             mir::TerminatorKind::Assert { ref cond, expected, ref msg, target, cleanup } => {
