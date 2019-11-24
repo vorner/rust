@@ -303,7 +303,7 @@ impl Inliner<'tcx> {
             let term = blk.terminator();
             let mut is_drop = false;
             match term.kind {
-                TerminatorKind::Drop { ref location, target, unwind } |
+                TerminatorKind::Drop { ref location, target, unwind, .. } |
                 TerminatorKind::DropAndReplace { ref location, target, unwind, .. } => {
                     is_drop = true;
                     work_list.push(target);

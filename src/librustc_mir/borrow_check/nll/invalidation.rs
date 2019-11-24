@@ -155,6 +155,7 @@ impl<'cx, 'tcx> Visitor<'tcx> for InvalidationGenerator<'cx, 'tcx> {
             }
             TerminatorKind::Drop {
                 location: ref drop_place,
+                flag: _,
                 target: _,
                 unwind: _,
             } => {

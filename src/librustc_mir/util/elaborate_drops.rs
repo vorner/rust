@@ -79,7 +79,7 @@ pub trait DropElaborator<'a, 'tcx>: fmt::Debug {
     fn param_env(&self) -> ty::ParamEnv<'tcx>;
 
     fn drop_style(&self, path: Self::Path, mode: DropFlagMode) -> DropStyle;
-    fn get_drop_flag(&mut self, path: Self::Path) -> Option<Operand<'tcx>>;
+    fn get_drop_flag(&mut self, path: Self::Path) -> Option<Place<'tcx>>;
     fn clear_drop_flag(&mut self, location: Location, path: Self::Path, mode: DropFlagMode);
 
 
@@ -165,14 +165,18 @@ where
             DropStyle::Static => {
                 self.elaborator.patch().patch_terminator(bb, TerminatorKind::Drop {
                     location: self.place.clone(),
+                    flag: None,
                     target: self.succ,
                     unwind: self.unwind.into_option(),
                 });
             }
             DropStyle::Conditional => {
-                let drop_bb = self.complete_drop(self.succ, self.unwind);
-                self.elaborator.patch().patch_terminator(bb, TerminatorKind::Goto {
-                    target: drop_bb
+                let flag = self.elaborator.get_drop_flag(self.path).unwrap();
+                self.elaborator.patch().patch_terminator(bb, TerminatorKind::Drop {
+                    location: self.place.clone(),
+                    flag: Some(flag),
+                    target: self.succ,
+                    unwind: self.unwind.into_option(),
                 });
             }
             DropStyle::Open => {
@@ -453,7 +457,7 @@ where
             if let Unwind::To(unwind) = unwind {
                 unwind_blocks.as_mut().unwrap().push(
                     self.drop_block(unwind, Unwind::InCleanup)
-                        );
+                );
             }
         } else {
             values.pop();
@@ -624,6 +628,7 @@ where
 
         self.elaborator.patch().patch_terminator(drop_block, TerminatorKind::Drop {
             location: tcx.mk_place_deref(ptr.clone()),
+            flag: None,
             target: loop_block,
             unwind: unwind.into_option()
         });
@@ -866,9 +871,7 @@ where
 
     fn elaborated_drop_block(&mut self) -> BasicBlock {
         debug!("elaborated_drop_block({:?})", self);
-        let unwind = self.unwind; // FIXME(#43234)
-        let succ = self.succ;
-        let blk = self.drop_block(succ, unwind);
+        let blk = self.drop_block(self.succ, self.unwind);
         self.elaborate_drop(blk);
         blk
     }
@@ -920,6 +923,7 @@ where
     fn drop_block(&mut self, target: BasicBlock, unwind: Unwind) -> BasicBlock {
         let block = TerminatorKind::Drop {
             location: self.place.clone(),
+            flag: None,
             target,
             unwind: unwind.into_option()
         };
@@ -940,7 +944,7 @@ where
             DropStyle::Dead => on_unset,
             DropStyle::Static => on_set,
             DropStyle::Conditional | DropStyle::Open => {
-                let flag = self.elaborator.get_drop_flag(self.path).unwrap();
+                let flag = Operand::Copy(self.elaborator.get_drop_flag(self.path).unwrap());
                 let term = TerminatorKind::if_(self.tcx(), flag, on_set, on_unset);
                 self.new_block(unwind, term)
             }

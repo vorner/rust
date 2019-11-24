@@ -368,7 +368,7 @@ impl<'b, 'a, 'tcx> Gatherer<'b, 'a, 'tcx> {
                 self.gather_operand(value);
             }
 
-            TerminatorKind::Drop { ref location, target: _, unwind: _ } => {
+            TerminatorKind::Drop { ref location, target: _, unwind: _, flag: _ } => {
                 self.gather_move(location);
             }
             TerminatorKind::DropAndReplace { ref location, ref value, .. } => {

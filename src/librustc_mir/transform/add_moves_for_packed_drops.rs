@@ -90,9 +90,9 @@ fn add_move_for_packed_drop<'tcx>(
     is_cleanup: bool,
 ) {
     debug!("add_move_for_packed_drop({:?} @ {:?})", terminator, loc);
-    let (location, target, unwind) = match terminator.kind {
-        TerminatorKind::Drop { ref location, target, unwind } =>
-            (location, target, unwind),
+    let (location, flag, target, unwind) = match terminator.kind {
+        TerminatorKind::Drop { ref location, ref flag, target, unwind } =>
+            (location, flag, target, unwind),
         _ => unreachable!()
     };
 
@@ -116,6 +116,7 @@ fn add_move_for_packed_drop<'tcx>(
                      Rvalue::Use(Operand::Move(location.clone())));
     patch.patch_terminator(loc.block, TerminatorKind::Drop {
         location: Place::from(temp),
+        flag: flag.clone(),
         target: storage_dead_block,
         unwind
     });
