@@ -166,10 +166,14 @@ impl<'tcx> InstanceDef<'tcx> {
             return true
         }
         if let ty::InstanceDef::DropGlue(..) = *self {
-            // Drop glue wants to be instantiated at every codegen
+            // Drop glue generally wants to be instantiated at every codegen
             // unit, but without an #[inline] hint. We should make this
             // available to normal end-users.
-            return true
+            //
+            // When compiling with incremental, we can generate a lot of
+            // codegen units. Including drop glue into all of them has a
+            // considerable compile time cost.
+            return tcx.sess.opts.incremental.is_none();
         }
         tcx.codegen_fn_attrs(self.def_id()).requests_inline()
     }
